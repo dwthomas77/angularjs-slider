@@ -1,7 +1,12 @@
 /**
- * Angular JS slider directive
+ * Customized Staffer Slider, Forked from Angular JS slider directive
  *
- * (c) Rafal Zajac <rzajac@gmail.com>
+ * Fork by David Thomas
+ * http://github.com/rzajac/angularjs-slider
+ *
+ * Version: v1.0.0
+ *
+ * Original by (c) Rafal Zajac <rzajac@gmail.com>
  * http://github.com/rzajac/angularjs-slider
  *
  * Version: v0.1.21
@@ -24,7 +29,9 @@ angular.module('rzModule', [])
               '<span class="rz-bubble rz-limit"></span>' + // 5 Ceiling label
               '<span class="rz-bubble"></span>' + // 6 Label above left slider handle
               '<span class="rz-bubble"></span>' + // 7 Label above right slider handle
-              '<span class="rz-bubble"></span>'; // 8 Range label when the slider handles are close ex. 15 - 17
+              '<span class="rz-bubble"></span>' + // 8 Range label when the slider handles are close ex. 15 - 17
+              '<rz-pips-container class="rz-pips-container"></rz-pips-container>' + // pip marks
+              '<rz-pip-labels class="rz-pip-labels"></rz-pip-labels>'; // pip mark labels
   $templateCache.put('rzSliderTpl.html', template);
 }])
 
@@ -172,6 +179,13 @@ function throttle(func, wait, options) {
     this.maxValue = 0;
 
     /**
+     * Pixels to adjust the display of slider handles
+     *
+     * @type {number}
+     */
+     this.sliderHandleOffset = -4;
+
+    /**
      * Hide limit labels
      *
      * @type {boolean}
@@ -206,7 +220,9 @@ function throttle(func, wait, options) {
      *
      * @type {function}
      */
-    this.customTrFn = this.scope.rzSliderTranslate() || function(value) { return String(value); };
+    this.customTrFn = this.scope.rzSliderTranslate() || function(value) {
+      return String(this.scope.rzSliderRangeList[value]);
+    };
 
     /**
      * Array of de-registration functions to call on $destroy
@@ -251,6 +267,9 @@ function throttle(func, wait, options) {
       this.precision = this.scope.rzSliderPrecision === undefined ? 0 : +this.scope.rzSliderPrecision;
       this.step = this.scope.rzSliderStep === undefined ? 1 : +this.scope.rzSliderStep;
 
+      // build pips
+      this.addPips();
+
       $timeout(function()
       {
         self.updateCeilLab();
@@ -273,7 +292,7 @@ function throttle(func, wait, options) {
       thrLow = throttle(function()
       {
         self.setMinAndMax();
-        self.updateLowHandle(self.valueToOffset(self.scope.rzSliderModel));
+        self.updateLowHandle(self.valueToOffset(self.scope.rzSliderModel) + self.sliderHandleOffset);
         self.updateSelectionBar();
 
         if(self.range)
@@ -286,7 +305,7 @@ function throttle(func, wait, options) {
       thrHigh = throttle(function()
       {
         self.setMinAndMax();
-        self.updateHighHandle(self.valueToOffset(self.scope.rzSliderHigh));
+        self.updateHighHandle(self.valueToOffset(self.scope.rzSliderHigh) + self.sliderHandleOffset);
         self.updateSelectionBar();
         self.updateCmbLabel();
       }, 350, { leading: false });
@@ -371,11 +390,11 @@ function throttle(func, wait, options) {
      */
     initHandles: function()
     {
-      this.updateLowHandle(this.valueToOffset(this.scope.rzSliderModel));
+      this.updateLowHandle(this.valueToOffset(this.scope.rzSliderModel) + this.sliderHandleOffset);
 
       if(this.range)
       {
-        this.updateHighHandle(this.valueToOffset(this.scope.rzSliderHigh));
+        this.updateHighHandle(this.valueToOffset(this.scope.rzSliderHigh) + this.sliderHandleOffset);
         this.updateCmbLabel();
       }
 
@@ -416,23 +435,33 @@ function throttle(func, wait, options) {
      */
     setMinAndMax: function()
     {
-      if(this.scope.rzSliderFloor)
-      {
-        this.minValue = +this.scope.rzSliderFloor;
-      }
-      else
-      {
+      // range list functionality
+      if(this.scope.rzSliderRangeList && this.scope.rzSliderRangeList.length > 0){
+        // always set min value to 0 to equal the first element of array
         this.minValue = this.scope.rzSliderFloor = 0;
+        // always set max value to the last item of the array
+        this.maxValue = this.scope.rzSliderCeil = this.scope.rzSliderRangeList.length - 1;
+
+      }else{
+        if(this.scope.rzSliderFloor)
+        {
+          this.minValue = +this.scope.rzSliderFloor;
+        }
+        else
+        {
+          this.minValue = this.scope.rzSliderFloor = 0;
+        }
+
+        if(this.scope.rzSliderCeil)
+        {
+          this.maxValue = +this.scope.rzSliderCeil;
+        }
+        else
+        {
+          this.scope.rzSliderCeil = this.maxValue = this.range ? this.scope.rzSliderHigh : this.scope.rzSliderModel;
+        }
       }
 
-      if(this.scope.rzSliderCeil)
-      {
-        this.maxValue = +this.scope.rzSliderCeil;
-      }
-      else
-      {
-        this.scope.rzSliderCeil = this.maxValue = this.range ? this.scope.rzSliderHigh : this.scope.rzSliderModel;
-      }
 
       if(this.scope.rzSliderStep)
       {
@@ -442,6 +471,49 @@ function throttle(func, wait, options) {
       this.valueRange = this.maxValue - this.minValue;
     },
 
+    /**
+     * Add pips to the slider bar
+     *
+     * @returns {undefined}
+     */
+    addPips: function()
+    {
+      // how many pips?  as many as are in array
+      var pips = this.scope.rzSliderRangeList;
+      var str = '', labelStr = '', tempVal = 0, tempLength = 0;;
+      var maxVal = this.maxLeft - 15;
+      // Left offset of pip lables, in Pixels
+      var pipLabelOffset = 50;
+      var pipMiddleLabelOffset = -3;
+      var pipFirstLabelOffset = (pipLabelOffset) * -1;
+      var pipLastLabelOffset = this.maxLeft - pipLabelOffset;
+
+      // Handle very long labels for first/last strings
+      pipFirstLabelOffset = pips[0].length < 6 ? pipFirstLabelOffset : pipFirstLabelOffset + 10;
+      pipLastLabelOffset = pips[pips.length - 1].length < 6 ? pipLastLabelOffset : pipLastLabelOffset - 10;
+
+      // first label
+      labelStr = '<span style="left: '+pipFirstLabelOffset+'px;">'+pips[0]+'</span>';
+      // last label
+      labelStr += '<span style="left: '+pipLastLabelOffset+'px;">'+pips[pips.length-1]+'</span>';
+
+      if(this.scope.rzShowMidLabels !== false){
+          for(var x = 1; x < pips.length-1; x++){
+              str += '<span style="left: '+this.roundStep(this.valueToOffset(x))+'px;" class="rzSlider-pip-mark"></span>';
+              // middle labels
+              //tempLength = 2 * pips.[x]
+              tempVal = this.roundStep(this.valueToOffset(x)) - pipLabelOffset - pipMiddleLabelOffset;
+              labelStr += '<span style="left: '+tempVal+'px;">'+pips[x]+'</span>'
+          }
+      }
+
+      this.sliderElem.find('rz-pips-container').html(str);
+
+      var pipLabelTar = this.sliderElem.find('rz-pip-labels');
+
+      pipLabelTar.html(labelStr);
+
+    },
     /**
      * Set the slider children to variables for easy access
      *
@@ -822,6 +894,9 @@ function throttle(func, wait, options) {
      */
     valueToOffset: function(val)
     {
+      // support array index values
+      // if value is negative count from end of list
+      val = (val < 0) ? this.scope.rzSliderRangeList.length + (val -1) : val;
       return (val - this.minValue) * this.maxLeft / this.valueRange;
     },
 
@@ -936,7 +1011,7 @@ function throttle(func, wait, options) {
       else {
         newValue = this.offsetToValue(newOffset);
         newValue = this.roundStep(newValue);
-        newOffset = this.valueToOffset(newValue);
+        newOffset = this.valueToOffset(newValue) + this.sliderHandleOffset;
       }
       this.positionTrackingHandle(newValue, newOffset);
     },
@@ -1044,6 +1119,8 @@ function throttle(func, wait, options) {
       rzSliderStep: '@',
       rzSliderPrecision: '@',
       rzSliderModel: '=?',
+      rzSliderRangeList: '=',
+      rzShowMidLabels: '=',
       rzSliderHigh: '=?',
       rzSliderTranslate: '&',
       rzSliderHideLimitLabels: '=?',
