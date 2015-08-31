@@ -19,17 +19,15 @@
 
         <article>
             <h2>Min/max slider example with Range List</h2>
-            Value: <pre>{{ priceSlider | json }}</pre>
+            Value: <pre>{{ rangeSlider | json }}</pre>
 
-            <input type="text" ng-model="priceSlider.min"/><br/>
-            <input type="text" ng-model="priceSlider.max"/><br/>
+            Min: {{ rangeSlider.rangeList[rangeSlider.min] }}
+            <br>Max: {{ rangeSlider.rangeList[rangeSlider.max] }}
 
             <rzslider
-                rz-slider-model="priceSlider.min"
-                rz-slider-high="priceSlider.max"
-                rz-slider-range-list="priceSlider.rangeList"
-                rz-slider-step="1"
-                rz-slider-translate="translate"
+                rz-slider-model="rangeSlider.min"
+                rz-slider-high="rangeSlider.max"
+                rz-slider-range-list="rangeSlider.rangeList"
                 rz-slider-tpl-url="rzSliderTpl.html"></rzslider>
         </article>
 
@@ -44,15 +42,10 @@
 
     app.controller('MainCtrl', function($scope)
     {
-        $scope.priceSlider = {
+        $scope.rangeSlider = {
             min: 1,
             max: 3,
             rangeList: ['0%', '50%', '75%', '90%', '100%' ]
-        };
-
-        $scope.translate = function(value)
-        {
-            return $scope.priceSlider.rangeList[value];
         };
 
         $scope.slider_data = {value: 1};
